@@ -133,6 +133,11 @@ impl<T> Arena<T> {
         self.nodes.iter()
     }
 
+    pub fn clear(&mut self) {
+        self.nodes.clear();
+        self.orphaned_nodes.clear();
+    }
+
     fn orphan_node(&mut self, id: NodeId) {
         self.orphaned_nodes.push_back(id);
 
