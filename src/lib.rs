@@ -75,26 +75,37 @@ impl<T> fmt::Display for Node<T> {
 /// An `Arena` structure containing certain Nodes
 pub struct Arena<T> {
     nodes: Vec<Node<T>>,
+    orphaned_nodes: VecDeque<NodeId>,
 }
 
 impl<T> Arena<T> {
     /// Create a new empty `Arena`
     pub fn new() -> Arena<T> {
-        Arena { nodes: Vec::new() }
+        Arena {
+            nodes: Vec::new(),
+            orphaned_nodes: VecDeque::new(),
+        }
     }
 
     /// Create a new node from its associated data.
     pub fn new_node(&mut self, data: T) -> NodeId {
-        let next_index = self.nodes.len();
-        self.nodes.push(Node {
+        let node = Node {
             parent: None,
             first_child: None,
             last_child: None,
             previous_sibling: None,
             next_sibling: None,
             data: data,
-        });
-        NodeId { index: next_index }
+        };
+
+        if let Some(vacant_index) = self.orphaned_nodes.pop_back() {
+            self.nodes[vacant_index.index] = node;
+            vacant_index
+        } else {
+            let next_index = self.nodes.len();
+            self.nodes.push(node);
+            NodeId { index: next_index }
+        }
     }
 
     // Count nodes in arena.
@@ -120,6 +131,15 @@ impl<T> Arena<T> {
     /// Iterate over all nodes in the arena in storage-order.
     pub fn iter(&self) -> std::slice::Iter<Node<T>> {
         self.nodes.iter()
+    }
+
+    fn orphan_node(&mut self, id: NodeId) {
+        self.orphaned_nodes.push_back(id);
+
+        let mut children = id.children(self); // TODO: Use Traverse walker
+        while let Some(child_id) = children.walk_next(self) {
+            self.orphan_node(child_id);
+        }
     }
 }
 
@@ -332,6 +352,12 @@ impl NodeId {
             debug_assert!(arena[first_child].previous_sibling.is_none());
             arena[first_child].previous_sibling = Some(new_child);
         }
+    }
+
+    /// Detaches and marks the node and its children as reusable.
+    pub fn orphan<T>(self, arena: &mut Arena<T>) {
+        self.detach(arena);
+        arena.orphan_node(self);
     }
 
     /// Insert a new sibling after this node.
