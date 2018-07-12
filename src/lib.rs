@@ -148,6 +148,31 @@ impl<T> Arena<T> {
     }
 }
 
+impl<T: Clone> Arena<T> {
+    // TODO: Move this methods to NodeId or move NodeId methods to Arena.
+    fn append_subtree_from(&mut self, from_id: NodeId, to_id: NodeId, from: &Arena<T>) {
+        let new_root_id = self.new_node(from[from_id].data.clone());
+        to_id.append(new_root_id, self);
+
+        for child_id in from_id.children(from).iter(from) {
+            let new_node = self.new_node(from[child_id].data.clone());
+            new_root_id.append(new_node, self);
+            self.append_subtree_from(child_id, new_node, from);
+        }
+    }
+
+    pub fn extract_subtree(&self, id: NodeId) -> Arena<T> {
+        let mut new_tree = Arena::new();
+        self.extract_subtree_into(id, &mut new_tree);
+        new_tree
+    }
+
+    pub fn extract_subtree_into(&self, id: NodeId, tree: &mut Arena<T>) {
+        let new_root_id = tree.new_node(self[id].data.clone());
+        tree.append_subtree_from(id, new_root_id, self);
+    }
+}
+
 #[cfg(feature = "par_iter")]
 impl<T: Sync> Arena<T> {
     /// Return an parallel iterator over the whole arena.
@@ -356,6 +381,14 @@ impl NodeId {
         if let Some(first_child) = first_child_opt {
             debug_assert!(arena[first_child].previous_sibling.is_none());
             arena[first_child].previous_sibling = Some(new_child);
+        }
+    }
+
+    /// Copies and appends the root node with its descendants to this node.
+    pub fn append_subtree<T: Clone>(&mut self, from_tree: &Arena<T>, into_tree: &mut Arena<T>) {
+        let from_root_id = NodeId::new(0);
+        if let Some(_) = from_tree.get(from_root_id) {
+            into_tree.append_subtree_from(from_root_id, *self, from_tree);
         }
     }
 
