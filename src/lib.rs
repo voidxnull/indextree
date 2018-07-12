@@ -139,11 +139,14 @@ impl<T> Arena<T> {
     }
 
     fn orphan_node(&mut self, id: NodeId) {
-        self.orphaned_nodes.push_back(id);
-
-        let mut children = id.children(self); // TODO: Use Traverse walker
-        while let Some(child_id) = children.walk_next(self) {
-            self.orphan_node(child_id);
+        let mut children = id.traverse(); // TODO: Use Traverse walker
+        while let Some(child_edge) = children.walk_next(self) {
+            match child_edge {
+                NodeEdge::Start(node_id) |
+                NodeEdge::End(node_id) => {
+                    self.orphaned_nodes.push_back(id);
+                }
+            }
         }
     }
 }
