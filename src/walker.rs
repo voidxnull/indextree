@@ -1,4 +1,4 @@
-use Arena;
+use Tree;
 
 // Taken and adapted from https://github.com/bluss/petgraph
 /// A walker is a traversal state, but where part of the traversal
@@ -9,10 +9,10 @@ use Arena;
 pub trait Walker<T> {
     type Item;
     /// Advance to the next item
-    fn walk_next(&mut self, context: &Arena<T>) -> Option<Self::Item>;
+    fn walk_next(&mut self, context: &Tree<T>) -> Option<Self::Item>;
 
     /// Create an iterator out of the walker and given `context`.
-    fn iter<'a>(self, arena: &'a Arena<T>) -> WalkerIter<'a, Self, T>
+    fn iter<'a>(self, arena: &'a Tree<T>) -> WalkerIter<'a, Self, T>
         where Self: Sized
     {
         WalkerIter {
@@ -26,13 +26,13 @@ pub trait Walker<T> {
 #[derive(Clone, Debug)]
 pub struct WalkerIter<'a, W, T: 'a> {
     walker: W,
-    arena: &'a Arena<T>,
+    arena: &'a Tree<T>,
 }
 
 impl<'a, W, T> WalkerIter<'a, W, T>
     where W: Walker<T>
 {
-    pub fn arena(&self) -> &'a Arena<T> {
+    pub fn arena(&self) -> &'a Tree<T> {
         self.arena
     }
 

@@ -1,4 +1,4 @@
-//! # Arena based tree data structure
+//! # Tree based tree data structure
 //!
 //! This arena tree structure is using just a single `Vec` and numerical identifiers (indices in the vector) instead of
 //! reference counted pointers like. This means there is no `RefCell` and mutability is handled in a way much more
@@ -7,10 +7,10 @@
 //!
 //! # Example usage
 //! ```
-//! use indextree::Arena;
+//! use indextree::Tree;
 //!
 //! // Create a new arena
-//! let arena = &mut Arena::new();
+//! let arena = &mut Tree::new();
 //!
 //! // Add some new nodes to the arena
 //! let a = arena.new_node(1);
@@ -39,14 +39,14 @@ pub mod walker;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug, Hash)]
 #[cfg_attr(feature = "deser", derive(Deserialize, Serialize))]
-/// A node identifier within a particular `Arena`
+/// A node identifier within a particular `Tree`
 pub struct NodeId {
     index: usize,
 }
 
 #[derive(PartialEq, Clone, Debug)]
 #[cfg_attr(feature = "deser", derive(Deserialize, Serialize))]
-/// A node within a particular `Arena`
+/// A node within a particular `Tree`
 pub struct Node<T> {
     // Keep these private (with read-only accessors) so that we can keep them consistent.
     // E.g. the parent of a node’s child is that node.
@@ -72,16 +72,16 @@ impl<T> fmt::Display for Node<T> {
 
 #[derive(PartialEq, Clone, Debug)]
 #[cfg_attr(feature = "deser", derive(Deserialize, Serialize))]
-/// An `Arena` structure containing certain Nodes
-pub struct Arena<T> {
+/// An `Tree` structure containing certain Nodes
+pub struct Tree<T> {
     nodes: Vec<Node<T>>,
     orphaned_nodes: VecDeque<NodeId>,
 }
 
-impl<T> Arena<T> {
-    /// Create a new empty `Arena`
-    pub fn new() -> Arena<T> {
-        Arena {
+impl<T> Tree<T> {
+    /// Create a new empty `Tree`
+    pub fn new() -> Tree<T> {
+        Tree {
             nodes: Vec::new(),
             orphaned_nodes: VecDeque::new(),
         }
@@ -151,12 +151,13 @@ impl<T> Arena<T> {
     }
 }
 
-impl<T: Clone> Arena<T> {
-    // TODO: Move this methods to NodeId or move NodeId methods to Arena.
-    fn append_subtree_from(&mut self, from_id: NodeId, to_id: NodeId, from: &Arena<T>) {
+impl<T: Clone> Tree<T> {
+    // TODO: Move this methods to NodeId or move NodeId methods to Tree.
+    fn append_subtree_from(&mut self, from_id: NodeId, to_id: NodeId, from: &Tree<T>) {
         let new_root_id = self.new_node(from[from_id].data.clone());
         to_id.append(new_root_id, self);
 
+        // TODO: Use the Traverse walker here.
         for child_id in from_id.children(from).iter(from) {
             let new_node = self.new_node(from[child_id].data.clone());
             new_root_id.append(new_node, self);
@@ -164,20 +165,20 @@ impl<T: Clone> Arena<T> {
         }
     }
 
-    pub fn extract_subtree(&self, id: NodeId) -> Arena<T> {
-        let mut new_tree = Arena::new();
+    pub fn extract_subtree(&self, id: NodeId) -> Tree<T> {
+        let mut new_tree = Tree::new();
         self.extract_subtree_into(id, &mut new_tree);
         new_tree
     }
 
-    pub fn extract_subtree_into(&self, id: NodeId, tree: &mut Arena<T>) {
+    pub fn extract_subtree_into(&self, id: NodeId, tree: &mut Tree<T>) {
         let new_root_id = tree.new_node(self[id].data.clone());
         tree.append_subtree_from(id, new_root_id, self);
     }
 }
 
 #[cfg(feature = "par_iter")]
-impl<T: Sync> Arena<T> {
+impl<T: Sync> Tree<T> {
     /// Return an parallel iterator over the whole arena.
     pub fn par_iter(&self) -> rayon::slice::Iter<Node<T>> {
         self.nodes.par_iter()
@@ -203,7 +204,7 @@ impl<T> GetPairMut<T> for Vec<T> {
     }
 }
 
-impl<T> Index<NodeId> for Arena<T> {
+impl<T> Index<NodeId> for Tree<T> {
     type Output = Node<T>;
 
     fn index(&self, node: NodeId) -> &Node<T> {
@@ -211,7 +212,7 @@ impl<T> Index<NodeId> for Arena<T> {
     }
 }
 
-impl<T> IndexMut<NodeId> for Arena<T> {
+impl<T> IndexMut<NodeId> for Tree<T> {
     fn index_mut(&mut self, node: NodeId) -> &mut Node<T> {
         &mut self.nodes[node.index]
     }
@@ -245,7 +246,7 @@ impl<T> Node<T> {
 }
 
 impl NodeId {
-    /// Create a `NodeId` used for attempting to get `Node`s references from an `Arena`.
+    /// Create a `NodeId` used for attempting to get `Node`s references from an `Tree`.
     pub fn new(index: usize) -> Self {
         Self { index }
     }
@@ -278,14 +279,14 @@ impl NodeId {
     }
 
     /// Return an iterator of references to this node’s children.
-    pub fn children<T>(self, arena: &Arena<T>) -> Children {
+    pub fn children<T>(self, arena: &Tree<T>) -> Children {
         Children {
             node: arena[self].first_child,
         }
     }
 
     /// Return an iterator of references to this node’s children, in reverse order.
-    pub fn reverse_children<T>(self, arena: &Arena<T>) -> ReverseChildren {
+    pub fn reverse_children<T>(self, arena: &Tree<T>) -> ReverseChildren {
         ReverseChildren {
             node: arena[self].last_child,
         }
@@ -316,7 +317,7 @@ impl NodeId {
     }
 
     /// Detach a node from its parent and siblings. Children are not affected.
-    pub fn detach<T>(self, arena: &mut Arena<T>) {
+    pub fn detach<T>(self, arena: &mut Tree<T>) {
         let (parent, previous_sibling, next_sibling) = {
             let node = &mut arena[self];
             (
@@ -340,7 +341,7 @@ impl NodeId {
     }
 
     /// Append a new child to this node, after existing children.
-    pub fn append<T>(self, new_child: NodeId, arena: &mut Arena<T>) {
+    pub fn append<T>(self, new_child: NodeId, arena: &mut Tree<T>) {
         new_child.detach(arena);
         let last_child_opt;
         {
@@ -364,7 +365,7 @@ impl NodeId {
     }
 
     /// Prepend a new child to this node, before existing children.
-    pub fn prepend<T>(self, new_child: NodeId, arena: &mut Arena<T>) {
+    pub fn prepend<T>(self, new_child: NodeId, arena: &mut Tree<T>) {
         new_child.detach(arena);
         let first_child_opt;
         {
@@ -388,7 +389,7 @@ impl NodeId {
     }
 
     /// Copies and appends the root node with its descendants to this node.
-    pub fn append_subtree<T: Clone>(&mut self, from_tree: &Arena<T>, into_tree: &mut Arena<T>) {
+    pub fn append_subtree<T: Clone>(&mut self, from_tree: &Tree<T>, into_tree: &mut Tree<T>) {
         let from_root_id = NodeId::new(0);
         if let Some(_) = from_tree.get(from_root_id) {
             into_tree.append_subtree_from(from_root_id, *self, from_tree);
@@ -396,13 +397,13 @@ impl NodeId {
     }
 
     /// Detaches and marks the node and its children as reusable.
-    pub fn orphan<T>(self, arena: &mut Arena<T>) {
+    pub fn orphan<T>(self, arena: &mut Tree<T>) {
         self.detach(arena);
         arena.orphan_node(self);
     }
 
     /// Insert a new sibling after this node.
-    pub fn insert_after<T>(self, new_sibling: NodeId, arena: &mut Arena<T>) {
+    pub fn insert_after<T>(self, new_sibling: NodeId, arena: &mut Tree<T>) {
         new_sibling.detach(arena);
         let next_sibling_opt;
         let parent_opt;
@@ -429,7 +430,7 @@ impl NodeId {
     }
 
     /// Insert a new sibling before this node.
-    pub fn insert_before<T>(self, new_sibling: NodeId, arena: &mut Arena<T>) {
+    pub fn insert_before<T>(self, new_sibling: NodeId, arena: &mut Tree<T>) {
         new_sibling.detach(arena);
         let previous_sibling_opt;
         let parent_opt;
@@ -461,7 +462,7 @@ macro_rules! impl_node_walker {
         impl<T> Walker<T> for $name {
             type Item = NodeId;
 
-            fn walk_next(&mut self, arena: &Arena<T>) -> Option<NodeId> {
+            fn walk_next(&mut self, arena: &Tree<T>) -> Option<NodeId> {
                 match self.node.take() {
                     Some(node) => {
                         self.node = $next(&arena[node]);
@@ -510,7 +511,7 @@ pub struct Descendants(Traverse);
 impl<T> Walker<T> for Descendants {
     type Item = NodeId;
 
-    fn walk_next(&mut self, arena: &Arena<T>) -> Option<NodeId> {
+    fn walk_next(&mut self, arena: &Tree<T>) -> Option<NodeId> {
         loop {
             match self.0.walk_next(arena) {
                 Some(NodeEdge::Start(node)) => return Some(node),
@@ -542,7 +543,7 @@ pub struct Traverse {
 impl<T> Walker<T> for Traverse {
     type Item = NodeEdge<NodeId>;
 
-    fn walk_next(&mut self, arena: &Arena<T>) -> Option<NodeEdge<NodeId>> {
+    fn walk_next(&mut self, arena: &Tree<T>) -> Option<NodeEdge<NodeId>> {
         match self.next.take() {
             Some(item) => {
                 self.next = match item {
@@ -587,7 +588,7 @@ pub struct ReverseTraverse {
 impl<T> Walker<T> for ReverseTraverse {
     type Item = NodeEdge<NodeId>;
 
-    fn walk_next(&mut self, arena: &Arena<T>) -> Option<NodeEdge<NodeId>> {
+    fn walk_next(&mut self, arena: &Tree<T>) -> Option<NodeEdge<NodeId>> {
         match self.next.take() {
             Some(item) => {
                 self.next = match item {

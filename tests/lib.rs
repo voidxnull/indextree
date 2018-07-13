@@ -2,14 +2,14 @@ extern crate indextree;
 #[cfg(feature = "par_iter")]
 extern crate rayon;
 
-use indextree::Arena;
+use indextree::Tree;
 #[cfg(feature = "par_iter")]
 use rayon::prelude::*;
 
 #[test]
 fn arenatree_success_create() {
     let mut new_counter = 0;
-    let arena = &mut Arena::new();
+    let arena = &mut Tree::new();
     macro_rules! new {
         () => {{
             new_counter += 1;
@@ -41,7 +41,7 @@ fn arenatree_success_create() {
 #[test]
 #[should_panic]
 fn arenatree_failure_prepend() {
-    let arena = &mut Arena::new();
+    let arena = &mut Tree::new();
     let a = arena.new_node(1);
     let b = arena.new_node(2);
     a.prepend(b, arena);
@@ -49,7 +49,7 @@ fn arenatree_failure_prepend() {
 
 #[test]
 fn arenatree_success_detach() {
-    let arena = &mut Arena::new();
+    let arena = &mut Tree::new();
     let a = arena.new_node(1);
     let b = arena.new_node(1);
     a.append(b, arena);
@@ -60,21 +60,21 @@ fn arenatree_success_detach() {
 
 #[test]
 fn arenatree_get() {
-    let arena = &mut Arena::new();
+    let arena = &mut Tree::new();
     let id = arena.new_node(1);
     assert_eq!(arena.get(id).unwrap().data, 1);
 }
 
 #[test]
 fn arenatree_get_mut() {
-    let arena = &mut Arena::new();
+    let arena = &mut Tree::new();
     let id = arena.new_node(1);
     assert_eq!(arena.get_mut(id).unwrap().data, 1);
 }
 
 #[test]
 fn arenatree_iter() {
-    let arena = &mut Arena::new();
+    let arena = &mut Tree::new();
     let a = arena.new_node(1);
     let b = arena.new_node(2);
     let c = arena.new_node(3);
@@ -90,7 +90,7 @@ fn arenatree_iter() {
 #[cfg(feature = "par_iter")]
 #[test]
 fn arenatree_par_iter() {
-    let arena = &mut Arena::new();
+    let arena = &mut Tree::new();
     let a = arena.new_node(1);
     let b = arena.new_node(2);
     let c = arena.new_node(3);

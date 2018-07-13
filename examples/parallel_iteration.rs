@@ -6,7 +6,7 @@ use rayon::prelude::*;
 
 pub fn main() {
     // Create a new arena
-    let arena = &mut Arena::new();
+    let arena = &mut Tree::new();
 
     // Add some new nodes to the arena
     println!("Creating arena tree");
